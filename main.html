@@ -77,24 +77,7 @@
     var billboards = scene.primitives.add(new Cesium.BillboardCollection());
     // Set the camera to follow the satellite 
     viewer.trackedEntity = entity;
-    var center = ellipsoid.cartographicToCartesian(Cesium.Cartographic.fromDegrees(-75.59777, 40.03883));
-labels.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(center);
-labels.add({
-  position : new Cesium.Cartesian3(0.0, 0.0, 0.0),
-  text     : 'Center'
-});
-labels.add({
-  position : new Cesium.Cartesian3(1000000.0, 0.0, 0.0),
-  text     : 'East'
-});
-labels.add({
-  position : new Cesium.Cartesian3(0.0, 1000000.0, 0.0),
-  text     : 'North'
-});
-labels.add({
-  position : new Cesium.Cartesian3(0.0, 0.0, 1000000.0),
-  text     : 'Up'
-});
+
      
     // Wait for globe to load then zoom out     
     let initialized = false;
