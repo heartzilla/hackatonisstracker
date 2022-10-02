@@ -1,14 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.81/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.81/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.js"></script>
+  <link href="style.css" rel="stylesheet">
 </head>
+<style>
+    *{margin: 0;
+    padding: 0;}
+</style>
 <body>
-  
- <script src="./js/three.js"></script>
- <script src="./main.js"></script>
+
+  <div id="cesiumContainer"></div>
+  <script>
+    // Initialize the Cesium viewer.
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+      imageryProvider: new Cesium.TileMapServiceImageryProvider({
+        url: Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII"),
+      }),
+      baseLayerPicker: false, geocoder: false, homeButton: false, infoBox: false,
+      navigationHelpButton: false, sceneModePicker: false
+      
+    });
+    // viewer.scene.globe.enableLighting = true;
+    // These 2 lines are published by NORAD and allow us to predict where
+    // the ISS is at any given moment. They are regularly updated.
+    // The name of ISS is CENTAURI-2
+    // Get the latest from: https://tle.ivanstanojevic.me/api/tle/43722. 
+    const ISS_TLE = 
+    `1 43722U 18096D   22274.20882847  .00043442  00000+0  92124-3 0  9995 
+    2 43722  97.3486 356.8137 0011171  30.6656 329.5244 15.44877358214375`;
+    const satrec = satellite.twoline2satrec(
+      ISS_TLE.split('\n')[0].trim(), 
+      ISS_TLE.split('\n')[1].trim()
+    );
+    // Give SatelliteJS the TLE's and a specific time.
+    // Get back a longitude, latitude, height (km).
+    // We're going to generate a position every 10 seconds from now until 6 seconds from now. 
+    const totalSeconds = 60 * 60 * 6;
+    const timestepInSeconds = 10;
+    const start = Cesium.JulianDate.fromDate(new Date());
+    const stop = Cesium.JulianDate.addSeconds(start, totalSeconds, new Cesium.JulianDate());
+    viewer.clock.startTime = start.clone();
+    viewer.clock.stopTime = stop.clone();
+    viewer.clock.currentTime = start.clone();
+    viewer.timeline.zoomTo(start, stop);
+    viewer.clock.multiplier = 1;
+    viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+    
+    const positionsOverTime = new Cesium.SampledPositionProperty();
+    for (let i = 0; i < totalSeconds; i+= timestepInSeconds) {
+      const time = Cesium.JulianDate.addSeconds(start, i, new Cesium.JulianDate());
+      const jsDate = Cesium.JulianDate.toDate(time);
+
+      const positionAndVelocity = satellite.propagate(satrec, jsDate);
+      const gmst = satellite.gstime(jsDate);
+      const p   = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+
+      const position = Cesium.Cartesian3.fromRadians(p.longitude, p.latitude, p.height * 1000);
+      positionsOverTime.addSample(time, position);
+      viewer.camera.flyHome(0);
+    }
+   
+
+    // Visualize the satellite with an image.
+    var entity = viewer.entities.add({
+        position: positionsOverTime,
+        billboard: {
+            image: "./assets/back1.png",
+            height: 60,
+            width: 80,
+        }
+        
+    })
+    var billboards = scene.primitives.add(new Cesium.BillboardCollection());
+    // Set the camera to follow the satellite 
+    viewer.trackedEntity = entity;
+    var center = ellipsoid.cartographicToCartesian(Cesium.Cartographic.fromDegrees(-75.59777, 40.03883));
+labels.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(center);
+labels.add({
+  position : new Cesium.Cartesian3(0.0, 0.0, 0.0),
+  text     : 'Center'
+});
+labels.add({
+  position : new Cesium.Cartesian3(1000000.0, 0.0, 0.0),
+  text     : 'East'
+});
+labels.add({
+  position : new Cesium.Cartesian3(0.0, 1000000.0, 0.0),
+  text     : 'North'
+});
+labels.add({
+  position : new Cesium.Cartesian3(0.0, 0.0, 1000000.0),
+  text     : 'Up'
+});
+     
+    // Wait for globe to load then zoom out     
+    let initialized = false;
+    viewer.scene.globe.tileLoadProgressEvent.addEventListener(() => {
+      if (!initialized && viewer.scene.globe.tilesLoaded === true) {
+        viewer.clock.shouldAnimate = true;
+        initialized = true;
+        viewer.scene.camera.zoomOut(7000000);
+        document.querySelector("#loading").classList.toggle('disappear', true)
+      }
+    });
+  </script>
 </body>
 </html>
